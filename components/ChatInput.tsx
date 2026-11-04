@@ -3018,7 +3018,7 @@ function PersonaSelector({ options, value, onChange }: {
   const current = options.find((option) => option.id === value) ?? null;
   const buttonStyle: CSSProperties = {
     height: 26,
-    padding: "0 9px",
+    padding: "0 7px",
     border: "1px solid var(--border)",
     borderRadius: 5,
     background: current ? "var(--accent-dim, var(--bg-panel))" : "var(--bg)",
@@ -3028,7 +3028,11 @@ function PersonaSelector({ options, value, onChange }: {
     whiteSpace: "nowrap",
     display: "inline-flex",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
+    // Never displace the model selector: fixed footprint, label truncates.
+    flex: "0 0 auto",
+    maxWidth: 108,
+    overflow: "hidden",
   };
   const menuStyle: CSSProperties = {
     position: "absolute",
@@ -3061,8 +3065,14 @@ function PersonaSelector({ options, value, onChange }: {
         title="新会话以哪个身份启动（不影响当前会话）"
         onClick={() => setOpen((was) => !was)}
       >
-        <span aria-hidden>☺</span>
-        <span>{current ? current.label : "身份"}</span>
+        <span aria-hidden style={{ flex: "0 0 auto" }}>☺</span>
+        <span style={{
+          maxWidth: current ? 74 : 40,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}>
+          {current ? current.label : "身份"}
+        </span>
       </button>
       {open && (
         <div style={menuStyle}>
