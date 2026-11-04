@@ -29,6 +29,8 @@ export interface SessionViewSnapshot {
 	summaryTree?: unknown;
 	thinkingLevel: string;
 	model: { provider: string; modelId: string } | null;
+	/** The session's own persona (identity), cached with the view. */
+	persona?: { id: string; displayName: string } | null;
 	stats?: unknown;
 	totalActiveMs?: number;
 	/** Ids of history pages the user already paged in beyond the first window. */

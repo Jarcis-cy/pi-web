@@ -74,6 +74,8 @@ interface Props {
   /** Persona (session identity) for the NEXT new session; null = normal session. */
   personaOptions?: { id: string; label: string }[] | null;
   selectedPersonaId?: string | null;
+  /** Label when the value has no matching option (e.g. persona list not loaded yet). */
+  personaFallbackLabel?: string | null;
   onPersonaChange?: (id: string | null) => void;
   /** The model new sessions start with, starred in the model selector. */
   defaultModel?: { provider: string; modelId: string } | null;
@@ -699,7 +701,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   defaultModel, onSetDefaultModel,
   onCompact, onAbortCompaction, isCompacting, compactError, onDismissCompactError, compactResult, toolPreset, onToolPresetChange,
   thinkingLevel, isAutoThinkingSelection = false, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap,
-  personaOptions = null, selectedPersonaId = null, onPersonaChange,
+  personaOptions = null, selectedPersonaId = null, personaFallbackLabel = null, onPersonaChange,
   savedDefaultThinkingLevel, onSetDefaultThinkingLevel,
   retryInfo, queuedMessages, inputHistory = [], onRecallQueue,
   slashCommands, slashCommandsLoading, onLoadSlashCommands,
@@ -2572,6 +2574,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
               <PersonaSelector
                 options={personaOptions}
                 value={selectedPersonaId}
+                fallbackLabel={personaFallbackLabel}
                 onChange={onPersonaChange}
               />
             )}
@@ -3000,9 +3003,10 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
 /** Identity picker for the NEXT new session: start it as one of the user's
  *  Agent definitions (persona), or as a normal session. Sits next to the
  *  model selector; switching identity does not touch the current session. */
-function PersonaSelector({ options, value, onChange }: {
+function PersonaSelector({ options, value, fallbackLabel, onChange }: {
   options: { id: string; label: string }[];
   value: string | null;
+  fallbackLabel?: string | null;
   onChange: (id: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -3015,7 +3019,8 @@ function PersonaSelector({ options, value, onChange }: {
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
-  const current = options.find((option) => option.id === value) ?? null;
+  const current = options.find((option) => option.id === value)
+    ?? (value ? { id: value, label: fallbackLabel || value } : null);
   const buttonStyle: CSSProperties = {
     height: 26,
     padding: "0 7px",

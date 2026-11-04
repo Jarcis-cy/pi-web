@@ -404,4 +404,6 @@ export interface SessionContext {
   turnsBefore: number;
   thinkingLevel: string;
   model: { provider: string; modelId: string } | null;
+  /** The session's own persona (identity), from its persisted metadata entry. */
+  persona: { id: string; displayName: string } | null;
 }

@@ -87,6 +87,7 @@ export interface SessionData {
     turnsBefore: number;
     thinkingLevel: string;
     model: { provider: string; modelId: string } | null;
+    persona: { id: string; displayName: string } | null;
   };
   /** Cumulative usage over ALL session-file entries (incl. compacted history). */
   stats?: SessionFileStats;
@@ -123,6 +124,8 @@ type AgentStateResponse = {
   extensionStatuses?: ExtensionStatusItem[];
   extensionWidgets?: ExtensionWidgetItem[];
   queuedMessages?: { steering?: string[]; followUp?: string[] } | null;
+  /** The session's own persona (identity), from its persisted metadata. */
+  persona?: { id: string; displayName: string } | null;
 };
 
 export interface QueuedMessages {
@@ -464,13 +467,28 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [toolPreset, setToolPreset] = useState<ToolPreset>(CONFIGURED_TOOL_PRESET);
   const [newSessionThinkingLevel, setNewSessionThinkingLevel] = useState<ConcreteThinkingLevel | null>(() => initialChoices?.thinkingLevel ?? null);
   const [newSessionDefaultThinkingLevel, setNewSessionDefaultThinkingLevel] = useState<ConcreteThinkingLevel | null>(null);
-  // Persona (session identity): id for the NEXT new session; null = no persona.
-  const [newSessionPersonaId, setNewSessionPersonaIdState] = useState<string | null>(null);
+  // Persona (session identity): pending id for the NEXT new session (persisted
+  // so a refresh keeps the choice) + the OPEN session's own persona (read back
+  // from its metadata, so switching sessions and back shows each one's identity).
+  const [newSessionPersonaId, setNewSessionPersonaIdState] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem("pi-web:newSessionPersonaId") || null;
+    } catch {
+      return null;
+    }
+  });
+  const [sessionPersona, setSessionPersona] = useState<{ id: string; displayName: string } | null>(null);
   const [personaOptions, setPersonaOptions] = useState<{ id: string; label: string }[] | null>(null);
-  const newSessionPersonaIdRef = useRef<string | null>(null);
+  const newSessionPersonaIdRef = useRef<string | null>(newSessionPersonaId);
   const setNewSessionPersona = useCallback((id: string | null) => {
     newSessionPersonaIdRef.current = id;
     setNewSessionPersonaIdState(id);
+    try {
+      if (id) window.localStorage.setItem("pi-web:newSessionPersonaId", id);
+      else window.localStorage.removeItem("pi-web:newSessionPersonaId");
+    } catch {
+      // storage unavailable: selection still works for this page life
+    }
   }, []);
   // Profiles follow the effective cwd (a new-session draft OR the open session):
   // the picker must stay visible while browsing existing sessions, because it
@@ -888,6 +906,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           summaryTree: d.tree,
           thinkingLevel: d.context.thinkingLevel,
           model: d.context.model,
+          persona: d.context.persona ?? null,
           stats: d.stats,
           totalActiveMs: d.totalActiveMs,
           loadedEntryIds: entryIdsRef.current,
@@ -934,6 +953,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       if (!includeState && d.context.thinkingLevel && d.context.thinkingLevel !== "off") {
         setLiveThinkingLevel(asConcreteThinkingLevel(d.context.thinkingLevel));
       }
+      setSessionPersona(d.context.persona ?? null);
 
       messagesLoaded = true;
       if (showLoading) setLoading(false);
@@ -952,6 +972,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         if (liveState) {
           applyLiveUsage(liveState, sid, runId, usageRequestId);
           if (liveState.systemPrompt !== undefined) setSystemPrompt(liveState.systemPrompt ?? null);
+          if (liveState.persona !== undefined) setSessionPersona(liveState.persona ?? null);
           if (liveState.extensionStatuses !== undefined) setExtensionStatuses(liveState.extensionStatuses ?? []);
           if (liveState.extensionWidgets !== undefined) setExtensionWidgets(liveState.extensionWidgets ?? []);
           if (liveState.queuedMessages !== undefined) setQueuedMessages(normalizeQueuedMessages(liveState.queuedMessages));
@@ -3132,6 +3153,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             turnsBefore: cached.turnsBefore,
             thinkingLevel: cached.thinkingLevel,
             model: cached.model,
+            persona: cached.persona ?? null,
           },
           stats: cached.stats as SessionData["stats"],
         });
@@ -3387,7 +3409,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     slashCommands, slashCommandsLoading, queuedMessages,
     notices: noticeState.visible, extensionDialog, waitingExtensionDialogCount, extensionCustomUi, waitingExtensionCustomUiCount, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     isAutoModelSelection: isNew && newSessionModel === null,
-    newSessionPersonaId, personaOptions, setNewSessionPersona,
+    newSessionPersonaId, sessionPersona, personaOptions, setNewSessionPersona,
     isAutoThinkingSelection: isNew && newSessionThinkingLevel === null,
     defaultModel: newSessionDefaultModel,
     savedDefaultThinkingLevel,

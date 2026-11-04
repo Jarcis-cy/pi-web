@@ -1357,6 +1357,12 @@ export class AgentSessionWrapper {
           // per-run changes again once the run ends.
           systemPrompt: this.exactSystemPrompt?.() ?? (this.inner.agent.state?.systemPrompt || this.inner.systemPrompt || ""),
           thinkingLevel: this.inner.agent.state?.thinkingLevel ?? "off",
+          // The session's own persona (identity), read from its persisted
+          // metadata entry: the picker shows this while the session is open.
+          persona: (() => {
+            const meta = readPersonaMetadata(this.inner.sessionManager.getEntries() as unknown as Parameters<typeof readPersonaMetadata>[0]);
+            return meta ? { id: meta.personaId, displayName: meta.displayName } : null;
+          })(),
           extensionStatuses: this.getExtensionStatuses(),
           extensionWidgets: this.getExtensionWidgets(),
         };
