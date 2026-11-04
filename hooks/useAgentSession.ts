@@ -472,10 +472,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     newSessionPersonaIdRef.current = id;
     setNewSessionPersonaIdState(id);
   }, []);
+  // Profiles follow the effective cwd (a new-session draft OR the open session):
+  // the picker must stay visible while browsing existing sessions, because it
+  // configures the NEXT new session.
+  const personaProfilesCwd = newSessionCwd ?? session?.cwd ?? null;
   useEffect(() => {
-    if (!newSessionCwd) return;
+    if (!personaProfilesCwd) return;
     let cancelled = false;
-    fetch(`/api/subagents/profiles?cwd=${encodeURIComponent(newSessionCwd)}`)
+    fetch(`/api/subagents/profiles?cwd=${encodeURIComponent(personaProfilesCwd)}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { profiles?: { name: string; displayName: string; enabled?: boolean; description?: string }[] } | null) => {
         if (cancelled || !data?.profiles) return;
@@ -487,7 +491,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         if (!cancelled) setPersonaOptions(null);
       });
     return () => { cancelled = true; };
-  }, [newSessionCwd]);
+  }, [personaProfilesCwd]);
   const [savedDefaultThinkingLevel, setSavedDefaultThinkingLevel] = useState<ConcreteThinkingLevel | null>(null);
   const [currentThinkingOverride, setCurrentThinkingOverride] = useState<ConcreteThinkingLevel | null>(null);
   const [liveThinkingLevel, setLiveThinkingLevel] = useState<ConcreteThinkingLevel | null>(null);

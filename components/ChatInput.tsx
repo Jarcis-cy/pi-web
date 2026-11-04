@@ -2553,13 +2553,6 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 <polyline points="21 15 16 10 5 21" />
               </svg>
             </button>
-            {personaOptions && personaOptions.length > 0 && onPersonaChange && (
-              <PersonaSelector
-                options={personaOptions}
-                value={selectedPersonaId}
-                onChange={onPersonaChange}
-              />
-            )}
             {/* Model selector - visible always, busy while a switch is pending; a switch during a run applies from its next request */}
             {(modelOptions.length > 0 || model || modelError) && onModelChange && (
               <ModelSelector
@@ -2573,6 +2566,13 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 onSetDefault={onSetDefaultModel}
                 allOptions={allModelList?.map((m) => ({ provider: m.provider, providerName: m.providerName, modelId: m.id, name: m.name }))}
                 onShowAll={onLoadAllModels}
+              />
+            )}
+            {personaOptions && personaOptions.length > 0 && onPersonaChange && (
+              <PersonaSelector
+                options={personaOptions}
+                value={selectedPersonaId}
+                onChange={onPersonaChange}
               />
             )}
           </div>
