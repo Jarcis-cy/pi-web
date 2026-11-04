@@ -3,6 +3,7 @@ import {
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import { closeSync, type Dirent, fstatSync, openSync, readSync, statSync } from "fs";
+import { readPersonaMetadata } from "./persona-session";
 import { readdir } from "fs/promises";
 import { isAbsolute, join, normalize as normalizePath, relative, resolve as resolvePath, sep } from "path";
 import type { AgentMessage, ImageContent, SessionEntry, SessionHeader, SessionInfo, SessionContext } from "./types";
@@ -682,8 +683,9 @@ export function getLatestModelChange(entries: SessionEntry[]): SessionContext["m
   return null;
 }
 
-export function getSessionSettings(entries: SessionEntry[], leafId?: string | null): Pick<SessionContext, "thinkingLevel" | "model"> {
-  if (leafId === null) return { thinkingLevel: "off", model: null };
+export function getSessionSettings(entries: SessionEntry[], leafId?: string | null): Pick<SessionContext, "thinkingLevel" | "model" | "persona"> {
+  // (persona rides along via buildSessionContext below)
+  if (leafId === null) return { thinkingLevel: "off", model: null, persona: getSessionPersona(entries) };
   const branch = sliceActiveBranch(entries, leafId ?? null, entries.length);
   let thinkingLevel: string | undefined;
   let responseModel: SessionContext["model"] | undefined;
@@ -704,7 +706,17 @@ export function getSessionSettings(entries: SessionEntry[], leafId?: string | nu
   return {
     thinkingLevel: thinkingLevel ?? "off",
     model: getLatestModelChange(branch) ?? responseModel ?? null,
+    // Persona is session-wide metadata, not branch state: scan all entries.
+    persona: getSessionPersona(entries),
   };
+}
+
+/** The persona metadata entry a session carries, mapped for the client. */
+export function getSessionPersona(
+  entries: SessionEntry[],
+): { id: string; displayName: string } | null {
+  const meta = readPersonaMetadata(entries as unknown as Parameters<typeof readPersonaMetadata>[0]);
+  return meta ? { id: meta.personaId, displayName: meta.displayName } : null;
 }
 
 export interface BuildSessionContextOptions {
