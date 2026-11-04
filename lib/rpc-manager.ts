@@ -54,6 +54,7 @@ import {
   readSideRelation,
   sideToolNames,
 } from "./side-session";
+import { PERSONA_META_TYPE, readPersonaMetadata } from "./persona-session";
 import { SIDE_SESSION_NAME, sideChatNameFrom } from "./session-family";
 import { createSubagentController, getLiveSubagentStatus, hasUnsettledSubagentRun } from "./subagent-runtime";
 import { isBuiltInSubagentsEnabled } from "./subagent-settings";
@@ -269,6 +270,9 @@ export interface RpcSessionStartOptions {
   initialModel?: { provider: string; modelId: string };
   allowInitialModelFallback?: boolean;
   thinkingLevel?: ThinkingLevel;
+  /** Persona for this session: appended system prompt, persisted as a custom
+   *  entry so restarts re-apply it. Undefined = a normal no-persona session. */
+  persona?: { personaId: string; displayName: string; appendSystemPrompt: string };
 }
 
 const CODING_TOOL_NAMES = ["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"];
@@ -3080,11 +3084,32 @@ export async function startRpcSession(
   }
   const sessionCwd = sessionManager.getCwd();
   const sessionEntries = sessionManager.getEntries() as unknown as SessionEntry[];
-  const hasPersistedSubagentSnapshot = sessionFile && hasSubagentResourceSnapshot(sessionEntries);
+  const hasPersistedSubagentSnapshotFirst = sessionFile && hasSubagentResourceSnapshot(sessionEntries);
+  // Persona (session identity): new sessions persist theirs as a custom entry;
+  // resumed sessions re-read it so restarts keep the identity. Never applies to
+  // subagent sessions (their own snapshot governs resources).
+  const personaFromOptions = options.persona && !hasPersistedSubagentSnapshotFirst ? options.persona : undefined;
+  const persona = personaFromOptions ?? (sessionFile
+    ? (() => {
+        const meta = readPersonaMetadata(sessionEntries as unknown as Parameters<typeof readPersonaMetadata>[0]);
+        return meta
+          ? { personaId: meta.personaId, displayName: meta.displayName, appendSystemPrompt: meta.appendSystemPrompt }
+          : undefined;
+      })()
+    : undefined);
+  if (!sessionFile && persona) {
+    sessionManager.appendCustomEntry(PERSONA_META_TYPE, {
+      version: 1,
+      personaId: persona.personaId,
+      displayName: persona.displayName,
+      appendSystemPrompt: persona.appendSystemPrompt,
+      createdAt: new Date().toISOString(),
+    } satisfies import("./persona-session.js").PersonaMetadata);
+  }
   const subagentResources = sessionFile
     ? readSubagentSessionResources(sessionEntries)
     : null;
-  if (hasPersistedSubagentSnapshot && !subagentResources) {
+  if (hasPersistedSubagentSnapshotFirst && !subagentResources) {
     throw new Error("Invalid subagent resource snapshot");
   }
   const persistedToolNames = subagentResources
@@ -3205,6 +3230,7 @@ export async function startRpcSession(
         : chatOnly
           ? { ...CHAT_ONLY_RESOURCE_LOADER_OPTIONS, extensionFactories: [exactSystemPromptExtension] }
         : {
+            ...(persona?.appendSystemPrompt ? { appendSystemPrompt: [persona.appendSystemPrompt] } : {}),
             extensionFactories: [
               ...(builtins?.extensions ?? []),
               createReadOnlyMcpPolicyExtension(),

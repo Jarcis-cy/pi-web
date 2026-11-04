@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, KeyboardEvent } from "react";
+import React, { memo, useRef, useState, useCallback, useEffect, useLayoutEffect, useImperativeHandle, forwardRef, KeyboardEvent, type CSSProperties } from "react";
 import type { BuiltinSlashCommandResult, CompactResultInfo, QueuedMessages, SlashCommandInfo } from "@/hooks/useAgentSession";
 import type { SkillsResponse } from "@/lib/api-types";
 import type { TextContent, UserMessage } from "@/lib/types";
@@ -71,6 +71,10 @@ interface Props {
   onLoadAllModels?: () => void;
   onModelChange?: (provider: string, modelId: string) => void;
   modelSwitching?: boolean;
+  /** Persona (session identity) for the NEXT new session; null = normal session. */
+  personaOptions?: { id: string; label: string }[] | null;
+  selectedPersonaId?: string | null;
+  onPersonaChange?: (id: string | null) => void;
   /** The model new sessions start with, starred in the model selector. */
   defaultModel?: { provider: string; modelId: string } | null;
   /** Saves a model as the default for new sessions and selects it here. */
@@ -695,6 +699,7 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
   defaultModel, onSetDefaultModel,
   onCompact, onAbortCompaction, isCompacting, compactError, onDismissCompactError, compactResult, toolPreset, onToolPresetChange,
   thinkingLevel, isAutoThinkingSelection = false, onThinkingLevelChange, availableThinkingLevels, thinkingLevelMap,
+  personaOptions = null, selectedPersonaId = null, onPersonaChange,
   savedDefaultThinkingLevel, onSetDefaultThinkingLevel,
   retryInfo, queuedMessages, inputHistory = [], onRecallQueue,
   slashCommands, slashCommandsLoading, onLoadSlashCommands,
@@ -2548,6 +2553,13 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
                 <polyline points="21 15 16 10 5 21" />
               </svg>
             </button>
+            {personaOptions && personaOptions.length > 0 && onPersonaChange && (
+              <PersonaSelector
+                options={personaOptions}
+                value={selectedPersonaId}
+                onChange={onPersonaChange}
+              />
+            )}
             {/* Model selector - visible always, busy while a switch is pending; a switch during a run applies from its next request */}
             {(modelOptions.length > 0 || model || modelError) && onModelChange && (
               <ModelSelector
@@ -2984,3 +2996,93 @@ export const ChatInput = memo(forwardRef<ChatInputHandle, Props>(function ChatIn
     </fieldset>
   );
 }));
+
+/** Identity picker for the NEXT new session: start it as one of the user's
+ *  Agent definitions (persona), or as a normal session. Sits next to the
+ *  model selector; switching identity does not touch the current session. */
+function PersonaSelector({ options, value, onChange }: {
+  options: { id: string; label: string }[];
+  value: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+  const current = options.find((option) => option.id === value) ?? null;
+  const buttonStyle: CSSProperties = {
+    height: 26,
+    padding: "0 9px",
+    border: "1px solid var(--border)",
+    borderRadius: 5,
+    background: current ? "var(--accent-dim, var(--bg-panel))" : "var(--bg)",
+    color: current ? "var(--accent, var(--text))" : "var(--text-muted)",
+    fontSize: 12,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+  };
+  const menuStyle: CSSProperties = {
+    position: "absolute",
+    bottom: "calc(100% + 6px)",
+    right: 0,
+    minWidth: 180,
+    maxHeight: 260,
+    overflowY: "auto",
+    padding: "4px",
+    border: "1px solid var(--border)",
+    borderRadius: 7,
+    background: "var(--bg-panel, var(--bg))",
+    boxShadow: "0 6px 22px rgba(0,0,0,.28)",
+    zIndex: 60,
+  };
+  const itemStyle = (active: boolean): CSSProperties => ({
+    padding: "6px 9px",
+    borderRadius: 5,
+    cursor: "pointer",
+    fontSize: 12,
+    color: active ? "var(--accent, var(--text))" : "var(--text)",
+    background: active ? "var(--bg-hover, rgba(127,127,127,.12))" : "transparent",
+    whiteSpace: "nowrap",
+  });
+  return (
+    <div ref={rootRef} style={{ position: "relative", display: "inline-flex" }}>
+      <button
+        type="button"
+        style={buttonStyle}
+        title="新会话以哪个身份启动（不影响当前会话）"
+        onClick={() => setOpen((was) => !was)}
+      >
+        <span aria-hidden>☺</span>
+        <span>{current ? current.label : "身份"}</span>
+      </button>
+      {open && (
+        <div style={menuStyle}>
+          <div
+            style={itemStyle(value === null)}
+            onClick={() => { onChange(null); setOpen(false); }}
+          >
+            无身份（普通会话）
+          </div>
+          {options.map((option) => (
+            <div
+              key={option.id}
+              style={itemStyle(option.id === value)}
+              onClick={() => { onChange(option.id); setOpen(false); }}
+            >
+              {option.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

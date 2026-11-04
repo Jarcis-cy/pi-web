@@ -464,6 +464,30 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const [toolPreset, setToolPreset] = useState<ToolPreset>(CONFIGURED_TOOL_PRESET);
   const [newSessionThinkingLevel, setNewSessionThinkingLevel] = useState<ConcreteThinkingLevel | null>(() => initialChoices?.thinkingLevel ?? null);
   const [newSessionDefaultThinkingLevel, setNewSessionDefaultThinkingLevel] = useState<ConcreteThinkingLevel | null>(null);
+  // Persona (session identity): id for the NEXT new session; null = no persona.
+  const [newSessionPersonaId, setNewSessionPersonaIdState] = useState<string | null>(null);
+  const [personaOptions, setPersonaOptions] = useState<{ id: string; label: string }[] | null>(null);
+  const newSessionPersonaIdRef = useRef<string | null>(null);
+  const setNewSessionPersona = useCallback((id: string | null) => {
+    newSessionPersonaIdRef.current = id;
+    setNewSessionPersonaIdState(id);
+  }, []);
+  useEffect(() => {
+    if (!newSessionCwd) return;
+    let cancelled = false;
+    fetch(`/api/subagents/profiles?cwd=${encodeURIComponent(newSessionCwd)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { profiles?: { name: string; displayName: string; enabled?: boolean; description?: string }[] } | null) => {
+        if (cancelled || !data?.profiles) return;
+        setPersonaOptions(data.profiles
+          .filter((profile) => profile.enabled !== false)
+          .map((profile) => ({ id: profile.name, label: profile.displayName || profile.name })));
+      })
+      .catch(() => {
+        if (!cancelled) setPersonaOptions(null);
+      });
+    return () => { cancelled = true; };
+  }, [newSessionCwd]);
   const [savedDefaultThinkingLevel, setSavedDefaultThinkingLevel] = useState<ConcreteThinkingLevel | null>(null);
   const [currentThinkingOverride, setCurrentThinkingOverride] = useState<ConcreteThinkingLevel | null>(null);
   const [liveThinkingLevel, setLiveThinkingLevel] = useState<ConcreteThinkingLevel | null>(null);
@@ -1039,6 +1063,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const promise = (async () => {
       // Only send explicit user overrides. The server resolves the current
       // enabledModels scope atomically with AgentSession construction.
+      const personaId = newSessionPersonaIdRef.current;
       const selectedModel = newSessionModelOverrideRef.current;
       const selectedThinkingLevel = thinkingLevelOverrideRef.current;
       if (selectedModel) setPendingModel(selectedModel);
@@ -1052,6 +1077,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         body: JSON.stringify({
           cwd: newSessionCwd,
           type: "ensure_session",
+          ...(personaId ? { personaId } : {}),
           ...(toolNames !== undefined ? { toolNames } : {}),
           ...(selectedModel ? { provider: selectedModel.provider, modelId: selectedModel.modelId } : {}),
           ...(selectedThinkingLevel
@@ -3357,6 +3383,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     slashCommands, slashCommandsLoading, queuedMessages,
     notices: noticeState.visible, extensionDialog, waitingExtensionDialogCount, extensionCustomUi, waitingExtensionCustomUiCount, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput,
     isAutoModelSelection: isNew && newSessionModel === null,
+    newSessionPersonaId, personaOptions, setNewSessionPersona,
     isAutoThinkingSelection: isNew && newSessionThinkingLevel === null,
     defaultModel: newSessionDefaultModel,
     savedDefaultThinkingLevel,

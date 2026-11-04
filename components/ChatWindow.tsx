@@ -288,6 +288,7 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
     agentRunning, bashRunning, pendingBash, modelNames, modelList, modelError, missingCwd, modelScopeWarnings, isModelScopeActive, allModelList, modelThinkingLevels, modelThinkingLevelMaps, toolPreset, thinkingLevel,
     retryInfo, contextUsage, forkingEntryId,
     isCompacting, compactError, compactResult, displayModel: displayModelValue, modelSwitching, sessionStats,
+    newSessionPersonaId, personaOptions, setNewSessionPersona,
     slashCommands, slashCommandsLoading, queuedMessages,
     notices, extensionDialog, waitingExtensionDialogCount, extensionCustomUi, waitingExtensionCustomUiCount, extensionStatuses, extensionWidgets, respondToExtensionUi, sendExtensionCustomInput, setNoticePaused, addNotice,
     isAutoModelSelection,
@@ -968,6 +969,9 @@ export function ChatWindow({ session, searchTarget, onSearchTargetHandled, initi
       onLoadAllModels={isModelScopeActive ? loadAllModels : undefined}
       onModelChange={handleModelChange}
       modelSwitching={modelSwitching}
+      personaOptions={personaOptions}
+      selectedPersonaId={newSessionPersonaId}
+      onPersonaChange={setNewSessionPersona}
       defaultModel={defaultModel}
       onSetDefaultModel={handleSetDefaultModel}
       onCompact={session || isNew ? handleCompact : undefined}
