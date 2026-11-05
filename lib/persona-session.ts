@@ -45,6 +45,7 @@ export function buildPersonaAppendSystemPrompt(
   const memoryBlock = [
     "",
     "--- 专家记忆区 ---",
+    `你的身份与规则底座：${options.expertBaseDir}/${profile.name}/AGENTS.md（开工必读——职责边界、inbox 交接、收工流程都在该文件；不要把它误解为工作目录仓库里的 AGENTS.md）。`,
     `你的专家记忆区：${options.expertBaseDir}/${profile.name}/projects/${options.projectName}/STATE.md`,
     "开工先读它；文件或目录不存在时，按你人设中关于项目层的规则初始化一套",
     `（STATE/LOG/DECISIONS/refs 建在 ${options.expertBaseDir}/${profile.name}/projects/${options.projectName}/ 下）。`,
