@@ -16,7 +16,7 @@
  * Failure policy: diagnostics never throw, never block a request and never keep the process alive.
  * Write errors fall back to one console line a minute; a full queue drops its oldest rows.
  *
- * Env: PI_WEB_DIAG=0 disables, PI_WEB_DIAG_DIR overrides the directory (default
+ * Env: PI_WEB_DIAG=1 turns it on (off unless asked: tests and dev runs never write), PI_WEB_DIAG_DIR overrides the directory (default
  * `<agent dir>/pi-web-diag`), PI_WEB_DIAG_STUCK_MS and PI_WEB_DIAG_REPEAT_MS tune the in-flight
  * watchdog, PI_WEB_DIAG_KEEP_DAYS prunes day files.
  */
@@ -68,7 +68,7 @@ function envInt(name: string, fallback: number): number {
 }
 
 function diagEnabled(): boolean {
-  return process.env.PI_WEB_DIAG !== "0";
+  return process.env.PI_WEB_DIAG === "1";
 }
 
 function diagDirectory(): string {

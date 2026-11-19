@@ -50,7 +50,8 @@ A tool still in flight after `PI_WEB_DIAG_STUCK_MS` (120s) is reported again eve
 RSS), fd/thread counts, event-loop lag and temp-directory inodes — the evidence needed to
 tell a hung child from a blocked server.
 
-`PI_WEB_DIAG=0` disables it, `PI_WEB_DIAG_DIR` moves the directory, `PI_WEB_DIAG_ARGS=1`
+Off unless `PI_WEB_DIAG=1` (the service unit sets it; tests and dev runs stay quiet).
+`PI_WEB_DIAG_DIR` moves the directory, `PI_WEB_DIAG_ARGS=1`
 adds a truncated bash command (off by default: ids, names, counts and kernel states only,
 never prompts, messages or tool arguments). Writes are asynchronous and never block a request.
 
