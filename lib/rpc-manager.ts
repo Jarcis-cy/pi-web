@@ -61,6 +61,7 @@ import {
 import { PERSONA_META_TYPE, readPersonaMetadata } from "./persona-session";
 import { SIDE_SESSION_NAME, sideChatNameFrom } from "./session-family";
 import { createSubagentController, getLiveSubagentStatus, hasUnsettledSubagentRun } from "./subagent-runtime";
+import { diagIdleDecision, diagToolEnd, diagToolStart, diagToolsCleared, diagWrapperClose } from "./diagnostics";
 import { isBuiltInSubagentsEnabled } from "./subagent-settings";
 import { resolveShellTools } from "./powershell-settings";
 import { CHAT_ONLY_RESOURCE_LOADER_OPTIONS, contextFilesSystemPrompt } from "./chat-only";
@@ -670,6 +671,7 @@ export class AgentSessionWrapper {
         invalidateSessionListCache();
         // Every tool call of the run has finished; nothing is left to replay.
         this.activeToolEvents.clear();
+        diagToolsCleared(this.sessionId, "agent_end");
       }
       // A name from setSessionName(), an extension's included: a title generated
       // in the background lands after the run's agent_end, a command's with no
@@ -729,11 +731,19 @@ export class AgentSessionWrapper {
     if (typeof toolCallId !== "string" || isNestedToolExecutionEvent(event)) return;
     if (event.type === "tool_execution_start") {
       this.activeToolEvents.set(toolCallId, { start: event, startedAt: performance.now() });
+      diagToolStart(this.sessionId, toolCallId, String(event.toolName ?? "unknown"), event.args);
     } else if (event.type === "tool_execution_update") {
       const active = this.activeToolEvents.get(toolCallId);
       if (active) active.update = event;
     } else if (event.type === "tool_execution_end") {
       this.activeToolEvents.delete(toolCallId);
+      diagToolEnd(
+        this.sessionId,
+        toolCallId,
+        String(event.toolName ?? "unknown"),
+        event.isError === true,
+        typeof event.durationMs === "number" ? event.durationMs : undefined,
+      );
       const nestedPrefix = `${toolCallId}/`;
       for (const id of this.activeToolEvents.keys()) {
         if (id.startsWith(nestedPrefix)) this.activeToolEvents.delete(id);
@@ -1214,13 +1224,34 @@ export class AgentSessionWrapper {
       this.idleDeadlineAt = null;
       // A subagent run that waits for a slot (or its MCP servers) holds this SDK session and will
       // prompt it: disposing it now would leave that run on a dead session that records nothing (#1590).
-      if (!this.forceShutdownOnIdle && (this.isRunning() || getLiveSubagentStatus(this.sessionId) !== undefined || hasActiveSessionLivenessProvider({
+      const running = this.isRunning();
+      const subagentStatus = getLiveSubagentStatus(this.sessionId) ?? null;
+      const liveness = hasActiveSessionLivenessProvider({
         sessionId: this.sessionId,
         sessionFile: this.sessionFile || undefined,
-      }))) {
+      }) === true;
+      if (!this.forceShutdownOnIdle && (running || subagentStatus !== null || liveness)) {
+        diagIdleDecision({
+          sessionId: this.sessionId,
+          decision: "keep",
+          running,
+          subagentStatus,
+          liveness,
+          forced: this.forceShutdownOnIdle,
+          idleMs: timeoutMs,
+        });
         this.resetIdleTimer();
         return;
       }
+      diagIdleDecision({
+        sessionId: this.sessionId,
+        decision: "close",
+        running,
+        subagentStatus,
+        liveness,
+        forced: this.forceShutdownOnIdle,
+        idleMs: timeoutMs,
+      });
       void this.shutdown().catch((error) => {
         console.error("[pi-web] failed to shut down idle session:", error instanceof Error ? error.message : error);
       });
@@ -2028,8 +2059,17 @@ export class AgentSessionWrapper {
 
   destroy(): void {
     if (!this._alive) return;
+    const wasRunning = this.isRunning();
     this._alive = false;
     this.closingAt ??= Date.now();
+    diagWrapperClose({
+      sessionId: this.sessionId,
+      pendingTools: [...this.activeToolEvents.keys()],
+      pendingPrompts: this.pendingPromptCount,
+      running: wasRunning,
+      forcedIdle: this.forceShutdownOnIdle,
+      ageMs: this.startedAt ? Date.now() - this.startedAt : undefined,
+    });
     this.disposeMcpHost();
     // Tell attached SSE listeners to drop this instance so the browser
     // EventSource errors and reconnects instead of staying OPEN on a dead wrapper.

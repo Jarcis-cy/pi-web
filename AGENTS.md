@@ -40,6 +40,20 @@ Avoid unnecessary secondary labels and descriptions. Let the layout do the expla
 
 Fix a bug at its cause, reasoning from first principles and established best practice. Do not patch over the symptom.
 
+## Diagnostics
+
+The server appends one JSON line per lifecycle event to
+`~/.pi/agent/pi-web-diag/diag-YYYYMMDD.ndjson`: `tool_start`, `tool_end`, `tool_stuck`,
+`tool_cleared`, `wrapper_close`, `idle_shutdown`, `loop_lag`, `process_snapshot`.
+A tool still in flight after `PI_WEB_DIAG_STUCK_MS` (120s) is reported again every
+`PI_WEB_DIAG_REPEAT_MS` (60s) with the server's child processes (state, wchan, cmdline,
+RSS), fd/thread counts, event-loop lag and temp-directory inodes — the evidence needed to
+tell a hung child from a blocked server.
+
+`PI_WEB_DIAG=0` disables it, `PI_WEB_DIAG_DIR` moves the directory, `PI_WEB_DIAG_ARGS=1`
+adds a truncated bash command (off by default: ids, names, counts and kernel states only,
+never prompts, messages or tool arguments). Writes are asynchronous and never block a request.
+
 ---
 
 ## API Routes
